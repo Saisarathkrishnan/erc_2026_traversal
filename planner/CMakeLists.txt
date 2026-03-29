@@ -36,6 +36,26 @@ add_executable(planner_node
   src/irc_planner.cpp
   
 )
+add_executable(obs_det
+src/obstacleDet.cpp
+)
+
+ament_target_dependencies(obs_det
+  rclcpp
+  std_msgs
+  sensor_msgs
+  geometry_msgs
+  custom_msgs
+  nav_msgs
+  std_srvs
+  tf2
+  tf2_geometry_msgs
+  pcl_conversions
+  pcl_ros
+)
+target_link_libraries(obs_det
+  ${PCL_LIBRARIES}
+)
 
 ament_target_dependencies(planner_node
   rclcpp
@@ -107,6 +127,7 @@ install(TARGETS
   imu_conversion_node
   motorcontroller
   local_obstacle_filter_node
+  obs_det
   DESTINATION lib/${PROJECT_NAME}
 )
 

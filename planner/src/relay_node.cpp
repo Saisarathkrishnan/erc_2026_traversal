@@ -115,8 +115,9 @@ private:
         int rp = std::min(99, static_cast<int>(std::fabs(r) * 60.0 / (wheel_diameter * M_PI) / max_wheel_RPM * 100.0));
         int lp = std::min(99, static_cast<int>(std::fabs(l) * 60.0 / (wheel_diameter * M_PI) / max_wheel_RPM * 100.0));
 
-        std::string p = "L" + std::string(l < 0 ? "-" : "") + std::to_string(lp) +
-                        "R" + std::string(r < 0 ? "-" : "") + std::to_string(rp) + "E";
+        
+        std::string p = "L" + std::string(r < 0 ? "-" : "") + std::to_string(lp) +
+                        "R" + std::string(l < 0 ? "-" : "") + std::to_string(rp) + "E";
 
         std::lock_guard<std::mutex> lock(mtx_);
         last_motor_packet_ = p;

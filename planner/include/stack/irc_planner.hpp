@@ -24,7 +24,8 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
-
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <sensor_msgs/point_cloud2_iterator.hpp>
 #include "attGoalManager.hpp"
 #include "head.hpp"
 
@@ -58,14 +59,17 @@ private:
     double obs_x;
     double obs_y;
     double roverAngle;
-    
+    bool obstacle_detected_;
+        double min_x_, max_x_, half_w_, side_thresh_, log_rate_hz_;
+    double best_x;
     const float maxLinearSpeed=2;
     const float maxAngularSpeed=1.5;
     const float maxObsLinearSpeed=1;
     const float maxObsAngularSpeed=2;
-    const float DistanceThreshold=5;
+    const float DistanceThreshold=3;
     const float Angle_Tolerance=10;
 
+    
 
     std::map<elog,int> stat123; //has all states
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;

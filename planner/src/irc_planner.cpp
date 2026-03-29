@@ -16,6 +16,8 @@ Stack::Stack()
 
       obs_x(0.0),
       obs_y(0.0),
+      best_x(0.0),
+      obstacle_detected_(false),
       cloud(std::make_shared<pcl::PointCloud<pcl::PointXYZ>>()),
       roverAngle(0.0f)
 {
@@ -44,9 +46,23 @@ Stack::Stack()
     // Topics & Parameters
     declare_parameter("imu_topic", "/imu_data");
     declare_parameter("gps_topic", "/fix");
-    declare_parameter("point_cloud_topic", "/obstacles");
+    declare_parameter("point_cloud_topic", "/local_grid_obstacle");
     declare_parameter("cmd_vel_topic", "/cmd_vel");
     declare_parameter("state_topic", "/autonomous_mode_state");
+
+                declare_parameter<double>("min_x", 0.5);
+        declare_parameter<double>("max_x", 3.0);
+        declare_parameter<double>("half_width", 0.4);
+        declare_parameter<double>("side_thresh", 0.15);
+        declare_parameter<double>("log_rate_hz", 10.0);
+
+        min_x_ = get_parameter("min_x").as_double();
+        max_x_ = get_parameter("max_x").as_double();
+        half_w_ = get_parameter("half_width").as_double();
+        side_thresh_ = get_parameter("side_thresh").as_double();
+        log_rate_hz_ = get_parameter("log_rate_hz").as_double();
+
+
 
     const auto imu_topic = get_parameter("imu_topic").as_string();
     const auto gps_topic = get_parameter("gps_topic").as_string();
@@ -251,11 +267,31 @@ void Stack::pclCallback(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg
 {
     std::lock_guard<std::mutex> lock(state_mutex_); // To make sure only one thread is using the protected variables :/
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr temp(
-        new pcl::PointCloud<pcl::PointXYZ>);
+    bool found = false;
+    float best_x = std::numeric_limits<float>::max();
 
-    pcl::fromROSMsg(*cloud_msg, *temp);
-    cloud.swap(temp);
+    sensor_msgs::PointCloud2ConstIterator<float> it_x(*cloud_msg, "x");
+    sensor_msgs::PointCloud2ConstIterator<float> it_y(*cloud_msg, "y");
+
+    for (; it_x != it_x.end(); ++it_x, ++it_y)
+    {
+        const float px = *it_x;
+        const float py = *it_y;
+
+        if (px < min_x_ || px > max_x_) continue;
+        if (std::abs(py) > half_w_) continue;
+
+        if (px < best_x)
+        {
+            best_x = px;
+            obs_x = px;
+            obs_y = py;
+            found = true;
+        }
+    }
+    
+    obstacle_detected_ = found;
+    std::cout<<"local_grid_obstacle yes"<<obstacle_detected_<<std::endl;
     obstacleClassifier();
     stat123[elog::pclInit] = 1;
     stat123[elog::pclActive] = 1;
@@ -318,7 +354,10 @@ void Stack::coordinateFollowing(Coordinates dest1)
         hardStop();
         return;
     }
-    double angle=std::fmod((destAngle - roverAngle + 540.0), 360.0) - 180.0;
+
+ 
+
+    double angle=std::abs(roverAngle - destAngle);
     //std::cout<<"hi"<<(std::abs(roverAngle - destAngle) < Angle_Tolerance)<<std::endl;
     if (!(std::abs(angle) < Angle_Tolerance))
     {
@@ -339,7 +378,7 @@ void Stack::coordinateFollowing(Coordinates dest1)
             {
                 speedIs = 0.3;
             }
-            speed.angular.z = speedIs;
+            speed.angular.z = -speedIs;
         }
         else if (angleDiffed < 0)
         {
@@ -353,7 +392,7 @@ void Stack::coordinateFollowing(Coordinates dest1)
             {
                 speedIs = 0.3;
             }
-            speed.angular.z = -speedIs;
+            speed.angular.z = speedIs;
         }
     }
     else
@@ -376,7 +415,7 @@ void Stack::coordinateFollowing(Coordinates dest1)
             {
                 speedIs = 0.3;
             }
-            speed.angular.z = speedIs;
+            speed.angular.z = -speedIs;
         }
         else if (angleDiffed < 0)
         {
@@ -390,13 +429,34 @@ void Stack::coordinateFollowing(Coordinates dest1)
             {
                 speedIs = 0.3;
             }
-            speed.angular.z = -speedIs;
+            speed.angular.z = speedIs;
         }
     }
+    std::cout<<"on___-"<<obstacle_detected_<<std::endl;
+    if(obstacle_detected_){
+        double distance_lmao=std::hypot(obs_x, obs_y);
+        std::cout<<"yes obstacle";
+        if(std::abs(obs_y)<1.4){
+            if(obs_y<1&&obs_y>0){
+                speed.angular.z = 1;
+                std::cout<<"turn left";
+            }else if(obs_y>-1&&obs_y<0){
+                speed.angular.z=-1;
+                std::cout<<"turn right";
+            }
+        }
+        std::cout<<"__"<<distance_lmao;
+        if(distance_lmao<1.25){
+            speed.linear.x=0;
+            std::cout<<"below thres"<<std::endl;
+        }else{
+            speed.linear.x=pow(distance_lmao, 3) / 100;
+        }
+    }else{  
 
     if (angleSet)
     {
-        double speedx = pow(dist, 3) / 10;
+        double speedx = pow(dist, 3) / 100;
         if (speedx < 0.3)
         {
             speedx = 0.4;
@@ -406,7 +466,7 @@ void Stack::coordinateFollowing(Coordinates dest1)
             speedx = 2;
         }
         speed.linear.x = 0.4;
-    }
+    }}
     publishVel(speed);
 }
 
@@ -465,11 +525,7 @@ void Stack::disableAutonomous()
 
 void Stack::obstacleClassifier()
 {
-    //obs_x = kMaxObsThreshold + 1.0;
-    obs_y = 0.0;
 
-    if (!cloud || cloud->points.empty())
-        return;
 
 }
 
